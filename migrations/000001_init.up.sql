@@ -1,25 +1,25 @@
     
 BEGIN;
 
-	CREATE SEQUENCE transfers_num START 1 INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1;
+	CREATE SEQUENCE seq_transfers START 1 INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1;
 	
-	CREATE TABLE transfers (
-		uid VARCHAR(120) UNIQUE NOT NULL CHECK (char_length(trim(uid)) > 0 AND char_length(trim(uid)) = char_length(uid)),
-		num BIGINT PRIMARY KEY DEFAULT nextval('transfers_num') CHECK (num > 0),
-		src BIGINT NOT NULL CHECK (src >= 0),
-		dst BIGINT NOT NULL CHECK (dst > 0),
-		val NUMERIC NOT NULL CHECK (val > 0),
-		CONSTRAINT different_accounts CHECK (src <> dst)
+	CREATE TABLE tab_transfers (
+		col_uid VARCHAR(120) UNIQUE NOT NULL CHECK (char_length(trim(col_uid)) > 0 AND char_length(trim(col_uid)) = char_length(col_uid)),
+		col_seq BIGINT PRIMARY KEY DEFAULT nextval('seq_transfers') CHECK (col_seq > 0),
+		col_src BIGINT NOT NULL CHECK (col_src >= 0),
+		col_dst BIGINT NOT NULL CHECK (col_dst > 0),
+		col_val NUMERIC NOT NULL CHECK (col_val > 0),
+		CONSTRAINT constrait_different_accounts CHECK (col_src <> col_dst)
     );
 
  
-    CREATE INDEX transfers_src_num ON transfers (src, num) INCLUDE (val);
-	CREATE INDEX transfers_dst_num ON transfers (dst, num) INCLUDE (val);
+    CREATE INDEX idx_transfers_src_seq ON tab_transfers (col_src, col_seq) INCLUDE (col_val);
+	CREATE INDEX idx_transfers_dst_seq ON tab_transfers (col_dst, col_seq) INCLUDE (col_val);
 
-  	CREATE table balances (
-    	acc BIGINT PRIMARY KEY CHECK (acc > 0),
-    	num BIGINT NOT NULL CHECK (num >= 0),
-    	val NUMERIC NOT NULL CHECK(val >= 0)
+  	CREATE table tab_balances (
+    	col_acc BIGINT PRIMARY KEY CHECK (col_acc > 0),
+    	col_seq BIGINT NOT NULL CHECK (col_seq >= 0),
+    	col_val NUMERIC NOT NULL CHECK(col_val >= 0)
     );
     
 	CREATE FUNCTION internal_func_assert_isolation(arg_iso_level TEXT) RETURNS VOID AS $$
@@ -42,7 +42,7 @@ BEGIN;
 
 		ASSERT char_length(arg_uid) > 0 AND char_length(trim(arg_uid)) = char_length(arg_uid);
 
-		RETURN EXISTS (SELECT TRUE FROM transfers WHERE uid = arg_uid);
+		RETURN EXISTS (SELECT TRUE FROM tab_transfers WHERE col_uid = arg_uid);
 
 	END;
 	$$ LANGUAGE plpgsql;
@@ -60,22 +60,22 @@ BEGIN;
 
 		ASSERT arg_account > 0;
 
-		INSERT INTO balances (acc,num,val) VALUES (arg_account,0,0) ON CONFLICT DO NOTHING;
+		INSERT INTO tab_balances (col_acc,col_seq,col_val) VALUES (arg_account,0,0) ON CONFLICT DO NOTHING;
 
-		SELECT val, num FROM balances INTO var_cache_val, var_cache_num WHERE acc = arg_account;
+		SELECT col_val, col_seq FROM tab_balances INTO var_cache_val, var_cache_num WHERE col_acc = arg_account;
 		-- RAISE NOTICE 'account cached balance % % %', arg_account, var_cache_num, var_cache_val;
 
-		SELECT last_value FROM transfers_num INTO var_max_num;
+		SELECT last_value FROM seq_transfers INTO var_max_num;
 		ASSERT var_max_num >= var_cache_num;
-		-- RAISE NOTICE 'last transfers num %', var_max_num;
+		-- RAISE NOTICE 'last tab_transfers col_seq %', var_max_num;
 
 		SELECT SUM (
 			CASE
-				WHEN src = arg_account THEN -val
-				WHEN dst = arg_account THEN +val
+				WHEN col_src = arg_account THEN -col_val
+				WHEN col_dst = arg_account THEN +col_val
 				ELSE 0
 			END
-		) INTO var_sum FROM transfers WHERE arg_account IN (src, dst) AND num <= var_max_num AND num > var_cache_num;
+		) INTO var_sum FROM tab_transfers WHERE arg_account IN (col_src, col_dst) AND col_seq <= var_max_num AND col_seq > var_cache_num;
 
 		--  RAISE NOTICE 'account sum % %', arg_account, var_sum;
 
@@ -88,8 +88,8 @@ BEGIN;
 		
 		--  RAISE NOTICE 'account balance % %', arg_account, var_balance;
 		
-		INSERT INTO balances(acc, num, val) VALUES (arg_account, var_max_num, var_balance)
-			ON CONFLICT(acc) DO UPDATE SET num = var_max_num, val = var_balance;
+		INSERT INTO tab_balances(col_acc, col_seq, col_val) VALUES (arg_account, var_max_num, var_balance)
+			ON CONFLICT(col_acc) DO UPDATE SET col_seq = var_max_num, col_val = var_balance;
 		--  RAISE NOTICE 'account balance cached % % %', arg_account, var_max_num, var_balance;
 
 		RETURN var_balance;
@@ -139,8 +139,8 @@ BEGIN;
 
 			PERFORM internal_func_assert_isolation('serializable');
 
-			IF EXISTS (SELECT TRUE FROM transfers WHERE uid = arg_uid) THEN
-				--  RAISE NOTICE 'transfer uid % exists', arg_uid;
+			IF EXISTS (SELECT TRUE FROM tab_transfers WHERE col_uid = arg_uid) THEN
+				--  RAISE NOTICE 'transfer col_uid % exists', arg_uid;
 				RETURN -1;
 			END IF;
 
@@ -163,17 +163,17 @@ BEGIN;
 
 			END IF;
 
-			INSERT INTO transfers(uid, src, dst, val) VALUES (arg_uid, arg_sender, arg_receiver, arg_val) ON CONFLICT (uid) DO NOTHING RETURNING num INTO var_inserted_num;
+			INSERT INTO tab_transfers(col_uid, col_src, col_dst, col_val) VALUES (arg_uid, arg_sender, arg_receiver, arg_val) ON CONFLICT (col_uid) DO NOTHING RETURNING col_seq INTO var_inserted_num;
 			IF var_inserted_num IS NULL THEN
-				--  RAISE NOTICE 'transfer uid % exists', arg_uid;
+				--  RAISE NOTICE 'transfer col_uid % exists', arg_uid;
 				RETURN -3;
 			END IF;
 			ASSERT var_inserted_num > 0;
 
 			IF arg_sender > 0 THEN 
-				UPDATE balances SET num = var_inserted_num, val = var_new_balance WHERE acc = arg_sender RETURNING TRUE INTO var_updated;
+				UPDATE tab_balances SET col_seq = var_inserted_num, col_val = var_new_balance WHERE col_acc = arg_sender RETURNING TRUE INTO var_updated;
 				ASSERT var_updated = TRUE;
-				--  RAISE NOTICE 'transfer from % to % value % uid %', arg_sender, arg_receiver, arg_val, arg_uid;
+				--  RAISE NOTICE 'transfer from % to % value % col_uid %', arg_sender, arg_receiver, arg_val, arg_uid;
 			END IF;
 
 			RETURN var_inserted_num;
