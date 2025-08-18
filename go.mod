@@ -1,3 +1,3 @@
-module github.com/itsabgr/ledger
+module github.com/itsabgr/pgledger
 
 go 1.24.5
