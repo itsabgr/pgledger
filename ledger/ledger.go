@@ -75,5 +75,5 @@ func (ledger *Ledger) Ping(ctx context.Context) error {
 }
 
 func (ledger *Ledger) Close(ctx context.Context) error {
-	return ledger.Close(ctx)
+	return ledger.pg.Close(ctx)
 }
