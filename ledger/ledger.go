@@ -4,27 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
-	"time"
 )
 
-type Ledger struct {
-	pg          *sql.DB
-	callTimeout time.Duration
-}
-
-func New(pg *sql.DB, callTimeout time.Duration) *Ledger {
-	return &Ledger{pg, callTimeout}
-}
-
-func (ledger *Ledger) Transfer(ctx context.Context, uid string, src, dst int64, val *big.Int, min *big.Int) (err error) {
+func Transfer(ctx context.Context, conn any, uid string, src, dst int64, val *big.Int, min *big.Int) (err error) {
 	if val == nil ||
 		val.Sign() <= 0 ||
 		min == nil ||
 		min.Sign() <= 0 ||
 		src < 0 ||
-		dst <= 0 ||
+		dst < 0 ||
 		len(uid) <= 0 ||
 		len(uid) > 120 ||
 		strings.TrimSpace(uid) != uid ||
@@ -32,48 +23,76 @@ func (ledger *Ledger) Transfer(ctx context.Context, uid string, src, dst int64, 
 		panic(errors.New("ledger: invalid transfer arguments"))
 	}
 	var result int64
-	err = ledger.call(ctx, false, "SELECT func_transfer($1,$2,$3,$4,$5);", &result, uid, src, dst, val.Text(10), min.Text(10))
+	err = call(ctx, conn, "SELECT func_transfer($1,$2,$3,$4,$5);", &result, []any{uid, src, dst, val.Text(10), min.Text(10)})
 	if err != nil {
 		return err
 	}
-	if result <= 0 {
-		return ErrorCode{result}
+	if result > 0 {
+		return nil
 	}
-	return nil
+	switch result {
+	case -1, -3:
+		return ErrExists
+	case -2:
+		return ErrInsufficientBalance
+	default:
+		return fmt.Errorf("ledger: invalid result %d", result)
+	}
 }
 
-func (ledger *Ledger) Balance(ctx context.Context, account int64) (val *big.Int, err error) {
+func Balance(ctx context.Context, conn any, account int64) (val *big.Int, err error) {
 	if account <= 0 || ctx == nil {
 		panic(errors.New("ledger: invalid balance arguments"))
 	}
 	var valStr string
-	err = ledger.call(ctx, false, "SELECT func_balance($1);", &valStr, account)
+	err = call(ctx, conn, "SELECT func_balance($1);", &valStr, []any{account})
 	if err != nil {
 		return nil, err
 	}
 	var ok bool
 	val, ok = (&big.Int{}).SetString(valStr, 10)
 	if !ok {
-		return nil, errors.New("invalid big int")
+		return nil, errors.New("ledger: invalid numeric value")
 	}
 	return val, nil
 }
 
-func (ledger *Ledger) Exists(ctx context.Context, uid string) (exists bool, err error) {
+func Exists(ctx context.Context, conn any, uid string) (exists bool, err error) {
 	if len(uid) <= 0 ||
 		len(uid) > 120 ||
 		strings.TrimSpace(uid) != uid ||
 		ctx == nil {
 		panic(errors.New("ledger: invalid exists arguments"))
 	}
-	err = ledger.call(ctx, true, "SELECT func_exists($1);", &exists, uid)
+	err = call(ctx, conn, "SELECT func_exists($1);", &exists, []any{uid})
 	return exists, err
 }
 
-func (ledger *Ledger) Ping(ctx context.Context) error {
-	return ledger.pg.PingContext(ctx)
-}
+func call(ctx context.Context, conn any, cmd string, result any, args []any) error {
 
-func (ledger *Ledger) Close() error {
-	return ledger.pg.Close()
+	switch db := conn.(type) {
+	case interface {
+		QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	}:
+		return db.QueryRowContext(ctx, cmd, args...).Scan(result)
+
+	case interface {
+		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	}:
+		rows, err := db.QueryContext(ctx, cmd, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		if !rows.Next() {
+			return sql.ErrNoRows
+		}
+
+		return rows.Scan(result)
+
+	default:
+		panic(fmt.Errorf("ledger: invalid sql conn interface %T", conn))
+	}
+
 }

@@ -131,7 +131,7 @@ BEGIN;
 			ASSERT arg_val > 0;
 			ASSERT arg_sender <> arg_receiver;
 			ASSERT arg_sender >= 0 ;
-			ASSERT arg_receiver > 0;
+			ASSERT arg_receiver >= 0;
 			ASSERT (arg_sender = 0 AND arg_min = 0) OR (arg_sender > 0);
 
 			ASSERT char_length(arg_uid) > 0 AND char_length(trim(arg_uid)) = char_length(arg_uid);

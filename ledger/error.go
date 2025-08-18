@@ -1,32 +1,9 @@
 package ledger
 
 import (
-	"strconv"
+	"errors"
 )
 
-var _ error = ErrorCode{}
+var ErrInsufficientBalance = errors.New("ledger: insufficient balance")
 
-type ErrorCode struct {
-	code int64
-}
-
-func (err ErrorCode) Error() string {
-	return "ledger error: " + strconv.FormatInt(err.code, 10)
-}
-
-func (err ErrorCode) Code() int64 {
-	return err.code
-}
-
-func (err ErrorCode) IsInsufficientBalance() bool {
-	return err.code == -2
-}
-
-func (err ErrorCode) IsUIDExists() bool {
-	switch err.code {
-	case -1, -3:
-		return true
-	default:
-		return false
-	}
-}
+var ErrExists = errors.New("ledger: exists")
