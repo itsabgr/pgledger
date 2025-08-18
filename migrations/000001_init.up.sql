@@ -11,7 +11,6 @@ BEGIN;
 		col_val NUMERIC NOT NULL CHECK (col_val > 0),
 		CONSTRAINT constrait_different_accounts CHECK (col_src <> col_dst)
     );
-
  
     CREATE INDEX idx_transfers_src_seq ON tab_transfers (col_src, col_seq) INCLUDE (col_val);
 	CREATE INDEX idx_transfers_dst_seq ON tab_transfers (col_dst, col_seq) INCLUDE (col_val);
@@ -77,7 +76,7 @@ BEGIN;
 			END
 		) INTO var_sum FROM tab_transfers WHERE arg_account IN (col_src, col_dst) AND col_seq <= var_max_num AND col_seq > var_cache_num;
 
-		--  RAISE NOTICE 'account sum % %', arg_account, var_sum;
+		-- RAISE NOTICE 'account sum % %', arg_account, var_sum;
 
 		IF var_sum IS NULL THEN
 			var_balance := var_cache_val;
@@ -86,11 +85,11 @@ BEGIN;
 		END IF;
 
 		
-		--  RAISE NOTICE 'account balance % %', arg_account, var_balance;
+		-- RAISE NOTICE 'account balance % %', arg_account, var_balance;
 		
 		INSERT INTO tab_balances(col_acc, col_seq, col_val) VALUES (arg_account, var_max_num, var_balance)
 			ON CONFLICT(col_acc) DO UPDATE SET col_seq = var_max_num, col_val = var_balance;
-		--  RAISE NOTICE 'account balance cached % % %', arg_account, var_max_num, var_balance;
+		-- RAISE NOTICE 'account balance cached % % %', arg_account, var_max_num, var_balance;
 
 		RETURN var_balance;
 
@@ -140,7 +139,7 @@ BEGIN;
 			PERFORM internal_func_assert_isolation('serializable');
 
 			IF EXISTS (SELECT TRUE FROM tab_transfers WHERE col_uid = arg_uid) THEN
-				--  RAISE NOTICE 'transfer col_uid % exists', arg_uid;
+				-- RAISE NOTICE 'transfer col_uid % exists', arg_uid;
 				RETURN -1;
 			END IF;
 
@@ -157,7 +156,7 @@ BEGIN;
 				var_new_balance := var_sum_balance - arg_val;
 		
 				IF var_new_balance < arg_min THEN
-					--  RAISE NOTICE 'insufficient sender balance % %', arg_sender, var_new_balance;
+					-- RAISE NOTICE 'insufficient sender balance % %', arg_sender, var_new_balance;
 					RETURN -2;
 				END IF;
 
@@ -165,7 +164,7 @@ BEGIN;
 
 			INSERT INTO tab_transfers(col_uid, col_src, col_dst, col_val) VALUES (arg_uid, arg_sender, arg_receiver, arg_val) ON CONFLICT (col_uid) DO NOTHING RETURNING col_seq INTO var_inserted_num;
 			IF var_inserted_num IS NULL THEN
-				--  RAISE NOTICE 'transfer col_uid % exists', arg_uid;
+				-- RAISE NOTICE 'transfer col_uid % exists', arg_uid;
 				RETURN -3;
 			END IF;
 			ASSERT var_inserted_num > 0;
@@ -173,7 +172,7 @@ BEGIN;
 			IF arg_sender > 0 THEN 
 				UPDATE tab_balances SET col_seq = var_inserted_num, col_val = var_new_balance WHERE col_acc = arg_sender RETURNING TRUE INTO var_updated;
 				ASSERT var_updated = TRUE;
-				--  RAISE NOTICE 'transfer from % to % value % col_uid %', arg_sender, arg_receiver, arg_val, arg_uid;
+				-- RAISE NOTICE 'transfer from % to % value % col_uid %', arg_sender, arg_receiver, arg_val, arg_uid;
 			END IF;
 
 			RETURN var_inserted_num;
