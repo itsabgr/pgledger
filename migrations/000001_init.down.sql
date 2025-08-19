@@ -1,9 +1,10 @@
 BEGIN;
-    DROP TABLE tab_transfers;
-    DROP TABLE tab_balances;
-    DROP FUNCTION internal_func_assert_isolation;
-    DROP FUNCTION internal_func_balance;
-    DROP FUNCTION func_balance;
-    DROP FUNCTION func_transfer;
-    DROP SEQUENCE seq_transfers;
+    DROP TABLE IF EXISTS tab_transfers;
+    DROP TABLE IF EXISTS tab_balances;
+    DROP FUNCTION IF EXISTS internal_func_assert_isolation;
+    DROP FUNCTION IF EXISTS internal_func_balance;
+    DROP FUNCTION IF EXISTS func_balance;
+    DROP FUNCTION IF EXISTS func_transfer;
+    DROP FUNCTION IF EXISTS func_exists;
+    DROP SEQUENCE IF EXISTS seq_transfers;
 COMMIT;
