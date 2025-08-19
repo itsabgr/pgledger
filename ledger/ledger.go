@@ -13,7 +13,7 @@ func Transfer(ctx context.Context, conn any, uid string, src, dst int64, val *bi
 	if val == nil ||
 		val.Sign() <= 0 ||
 		min == nil ||
-		min.Sign() <= 0 ||
+		min.Sign() < 0 ||
 		src < 0 ||
 		dst < 0 ||
 		len(uid) <= 0 ||
