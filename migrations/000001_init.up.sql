@@ -64,7 +64,8 @@ BEGIN;
 		SELECT col_val, col_seq FROM tab_balances INTO var_cache_val, var_cache_num WHERE col_acc = arg_account;
 		-- RAISE NOTICE 'account cached balance % % %', arg_account, var_cache_num, var_cache_val;
 
-		SELECT last_value FROM seq_transfers INTO var_max_num;
+		SELECT COALESCE(MAX(col_seq), 0) INTO var_max_num FROM tab_transfers;
+		
 		ASSERT var_max_num >= var_cache_num;
 		-- RAISE NOTICE 'last tab_transfers col_seq %', var_max_num;
 
