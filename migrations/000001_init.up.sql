@@ -9,10 +9,11 @@ BEGIN;
 		col_src BIGINT NOT NULL CHECK (col_src >= 0),
 		col_dst BIGINT NOT NULL CHECK (col_dst > 0),
 		col_val NUMERIC NOT NULL CHECK (col_val > 0),
+		col_fee NUMERIC NOT NULL CHECK (col_fee >= 0),
 		CONSTRAINT constrait_different_accounts CHECK (col_src <> col_dst)
     );
  
-    CREATE INDEX idx_transfers_src_seq ON tab_transfers (col_src, col_seq) INCLUDE (col_val);
+    CREATE INDEX idx_transfers_src_seq ON tab_transfers (col_src, col_seq) INCLUDE (col_val, col_fee);
 	CREATE INDEX idx_transfers_dst_seq ON tab_transfers (col_dst, col_seq) INCLUDE (col_val);
 
   	CREATE table tab_balances (
@@ -71,7 +72,7 @@ BEGIN;
 
 		SELECT SUM (
 			CASE
-				WHEN col_src = arg_account THEN -col_val
+				WHEN col_src = arg_account THEN -col_val-col_fee
 				WHEN col_dst = arg_account THEN +col_val
 				ELSE 0
 			END
@@ -119,7 +120,7 @@ BEGIN;
 	
 	
 
-	CREATE FUNCTION func_transfer(arg_uid TEXT, arg_sender BIGINT, arg_receiver BIGINT, arg_val numeric, arg_min numeric) RETURNS BIGINT AS $$
+	CREATE FUNCTION func_transfer(arg_uid TEXT, arg_sender BIGINT, arg_receiver BIGINT, arg_val numeric, arg_min numeric, arg_fee numeric) RETURNS BIGINT AS $$
 	DECLARE
 		var_sum_balance NUMERIC = 0;
 		var_new_balance NUMERIC = 0;
@@ -129,11 +130,12 @@ BEGIN;
 	
 			
 			ASSERT arg_min >= 0;
+			ASSERT arg_fee >= 0;
 			ASSERT arg_val > 0;
 			ASSERT arg_sender <> arg_receiver;
 			ASSERT arg_sender >= 0 ;
 			ASSERT arg_receiver >= 0;
-			ASSERT (arg_sender = 0 AND arg_min = 0) OR (arg_sender > 0);
+			ASSERT (arg_sender = 0 AND arg_min = 0 AND arg_fee = 0) OR (arg_sender > 0);
 
 			ASSERT char_length(arg_uid) > 0 AND char_length(trim(arg_uid)) = char_length(arg_uid);
 
@@ -154,7 +156,7 @@ BEGIN;
 				SELECT internal_func_balance(arg_sender) INTO var_sum_balance;
 				ASSERT var_sum_balance >= 0;
 
-				var_new_balance := var_sum_balance - arg_val;
+				var_new_balance := var_sum_balance - arg_val - arg_fee;
 		
 				IF var_new_balance < arg_min THEN
 					-- RAISE NOTICE 'insufficient sender balance % %', arg_sender, var_new_balance;
@@ -163,7 +165,7 @@ BEGIN;
 
 			END IF;
 
-			INSERT INTO tab_transfers(col_uid, col_src, col_dst, col_val) VALUES (arg_uid, arg_sender, arg_receiver, arg_val) ON CONFLICT (col_uid) DO NOTHING RETURNING col_seq INTO var_inserted_num;
+			INSERT INTO tab_transfers(col_uid, col_src, col_dst, col_val, col_fee) VALUES (arg_uid, arg_sender, arg_receiver, arg_val, arg_fee) ON CONFLICT (col_uid) DO NOTHING RETURNING col_seq INTO var_inserted_num;
 			IF var_inserted_num IS NULL THEN
 				-- RAISE NOTICE 'transfer col_uid % exists', arg_uid;
 				RETURN -3;

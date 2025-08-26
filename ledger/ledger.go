@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func Transfer(ctx context.Context, conn any, uid string, src, dst int64, val *big.Int, min *big.Int) (err error) {
+func Transfer(ctx context.Context, conn any, uid string, src, dst int64, val, min, fee *big.Int) (err error) {
 	if val == nil ||
 		val.Sign() <= 0 ||
 		min == nil ||
@@ -23,7 +23,7 @@ func Transfer(ctx context.Context, conn any, uid string, src, dst int64, val *bi
 		panic(errors.New("ledger: invalid transfer arguments"))
 	}
 	var result int64
-	err = call(ctx, conn, "SELECT func_transfer($1,$2,$3,$4,$5);", &result, []any{uid, src, dst, val.Text(10), min.Text(10)})
+	err = call(ctx, conn, "SELECT func_transfer($1,$2,$3,$4,$5,$6);", &result, []any{uid, src, dst, val.Text(10), min.Text(10), fee.Text(10)})
 	if err != nil {
 		return err
 	}
